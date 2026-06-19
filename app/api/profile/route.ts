@@ -22,6 +22,9 @@ export async function GET(req: Request) {
         phone: '',
         photoUrl: '',
         role: email === 'barbeariapapofurado@gmail.com' ? 'admin' : 'client',
+        isFavorite: false,
+        isPremium: false,
+        isVIP: false,
         createdAt: new Date().toISOString()
       };
       await db.collection('usuarios').doc(id).set(newUser);
