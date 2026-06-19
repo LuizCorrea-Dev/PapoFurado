@@ -61,10 +61,19 @@ if (!admin.apps.length) {
     }
   } else {
     // 4. Last resort: default initialization
-    admin.initializeApp({
-      projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-    });
-    console.warn("Firebase Admin: Inicializado sem conta de serviço explicitamente (permissões podem falhar).");
+    console.error("❌ ERRO CRÍTICO: Nenhuma credencial do Firebase Admin foi encontrada!");
+    console.error("- FIREBASE_PRIVATE_KEY está presente?", !!privateKeyVar);
+    console.error("- FIREBASE_CLIENT_EMAIL está presente?", !!clientEmailVar);
+    console.error("- FIREBASE_SERVICE_ACCOUNT está presente?", !!serviceAccountVar);
+    console.warn("Tentando inicializar sem credenciais explicitas (ADC)...");
+    
+    try {
+      admin.initializeApp({
+        projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+      });
+    } catch (error) {
+      console.error("❌ Falha fatal ao inicializar Firebase Admin via ADC:", error);
+    }
   }
 }
 
