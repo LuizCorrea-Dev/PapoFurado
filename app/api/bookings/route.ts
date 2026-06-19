@@ -5,12 +5,16 @@ import { v4 as uuidv4 } from 'uuid';
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const dateStr = searchParams.get('date');
+  const userId = searchParams.get('userId');
 
   try {
     let query: any = db.collection('agendamentos');
     
     if (dateStr) {
       query = query.where('date', '==', dateStr);
+    }
+    if (userId) {
+      query = query.where('userId', '==', userId);
     }
     
     const snapshot = await query.get();
@@ -33,12 +37,13 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { name, phone, service, professional, date, time } = body;
+    const { userId, name, phone, service, professional, date, time } = body;
 
     const id = uuidv4();
     const createdAt = new Date().toISOString();
 
     await db.collection('agendamentos').doc(id).set({
+      userId: userId || '',
       name: name || 'Cliente',
       phone: phone || '',
       service: service || '',

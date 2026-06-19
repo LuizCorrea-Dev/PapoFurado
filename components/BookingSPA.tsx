@@ -38,9 +38,11 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { auth, googleProvider } from '@/lib/firebase';
+import { signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, User as FirebaseUser } from 'firebase/auth';
 import { Toaster } from "@/components/ui/sonner";
 
-type View = 'agendar' | 'perfil' | 'admin';
+type View = 'agendar' | 'perfil' | 'admin' | 'login';
 
 function isPortugalHoliday(date: Date): boolean {
   const year = date.getFullYear();
@@ -111,9 +113,12 @@ interface BookingSPAProps {
 }
 
 export default function BookingSPA({ onBackToHome, initialView }: BookingSPAProps) {
-  // Mocking auth since Google Auth was removed
   const [user, setUser] = useState<any>(null);
-  const [authLoading, setAuthLoading] = useState(false);
+  const [userRole, setUserRole] = useState<'client' | 'admin' | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [authEmail, setAuthEmail] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [isRegistering, setIsRegistering] = useState(false);
   
   const [activeView, setActiveView] = useState<View>(initialView || 'agendar');
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -129,7 +134,7 @@ export default function BookingSPA({ onBackToHome, initialView }: BookingSPAProp
   const [adminBookings, setAdminBookings] = useState<any[]>([]);
   const [isLoadingAdmin, setIsLoadingAdmin] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [userRole, setUserRole] = useState<'admin' | 'client' | null>(null);
+
   const [adminSubView, setAdminSubView] = useState<'agenda' | 'landing' | 'bloqueios' | 'servicos' | 'profissionais' | 'clientes'>('agenda');
   const [customers, setCustomers] = useState<any[]>([]);
   const [isLoadingCustomers, setIsLoadingCustomers] = useState(false);
@@ -533,59 +538,112 @@ export default function BookingSPA({ onBackToHome, initialView }: BookingSPAProp
     type: 'indisponivel'
   });
 
-  const login = async () => {
-    setAuthLoading(true);
+  const fetchUserProfile = async (firebaseUser: FirebaseUser) => {
     try {
-      const email = 'luizcorrea.pt@gmail.com';
-      const res = await fetch(`/api/profile?email=${email}`);
+      // Pass both email and uid to ensure backend can create/fetch correctly
+      const res = await fetch(`/api/profile?email=${firebaseUser.email}&uid=${firebaseUser.uid}`);
       const userData = await res.json();
       
       if (!res.ok) throw new Error(userData.error || 'Erro ao carregar perfil');
 
       const finalUser = {
-        uid: userData.id,
-        id: userData.id,
-        displayName: userData.name,
-        name: userData.name,
-        email: userData.email,
-        photoURL: userData.photoUrl || null,
-        photoUrl: userData.photoUrl || null,
+        uid: firebaseUser.uid,
+        id: userData.id || firebaseUser.uid,
+        displayName: userData.name || firebaseUser.displayName || 'Cliente',
+        name: userData.name || firebaseUser.displayName || 'Cliente',
+        email: firebaseUser.email,
+        photoURL: userData.photoUrl || firebaseUser.photoURL || null,
+        photoUrl: userData.photoUrl || firebaseUser.photoURL || null,
         phone: userData.phone || '',
         isVIP: !!userData.isVIP,
         isPremium: !!userData.isPremium,
         isFavorite: !!userData.isFavorite,
-        role: userData.email === 'luizcorrea.pt@gmail.com' ? 'admin' : 'client'
+        role: (firebaseUser.email === 'luizcorrea.pt@gmail.com' || userData.role === 'admin') ? 'admin' : 'client'
       };
       
       setUser(finalUser);
       setUserRole(finalUser.role as any);
-      localStorage.setItem('local_user', JSON.stringify(finalUser));
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('local_user', JSON.stringify(finalUser));
+      }
     } catch (error) {
-      console.error('Erro ao fazer login:', error);
-      toast.error('Erro ao acessar sua conta');
+      console.error('Erro ao buscar perfil do Firestore:', error);
+      toast.error('Erro ao carregar dados do usuário');
+    }
+  };
+
+  const loginWithGoogle = async () => {
+    setAuthLoading(true);
+    try {
+      await signInWithPopup(auth, googleProvider);
+      toast.success('Login com Google realizado com sucesso!');
+      if (activeView === 'login') setActiveView('agendar');
+    } catch (error: any) {
+      console.error('Erro ao fazer login com Google:', error);
+      if (error.code === 'auth/popup-blocked') {
+         toast.error('O pop-up de login foi bloqueado! Por favor, permita pop-ups neste site ou use e-mail/senha.');
+      } else {
+         toast.error(error.message || 'Erro ao acessar sua conta com Google');
+      }
     } finally {
       setAuthLoading(false);
     }
   };
 
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem('local_user');
-    setActiveView('agendar');
+  const loginWithEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthLoading(true);
+    try {
+      if (isRegistering) {
+        await createUserWithEmailAndPassword(auth, authEmail, authPassword);
+        toast.success('Conta criada com sucesso!');
+      } else {
+        await signInWithEmailAndPassword(auth, authEmail, authPassword);
+        toast.success('Login realizado com sucesso!');
+      }
+      if (activeView === 'login') setActiveView('agendar');
+    } catch (error: any) {
+      console.error('Erro ao autenticar com email:', error);
+      toast.error(error.message || 'Erro ao acessar sua conta');
+    } finally {
+      setAuthLoading(false);
+    }
   };
 
-  // Check for local session
-  useEffect(() => {
-    const saved = localStorage.getItem('local_user');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        setTimeout(() => {
-          setUser(parsed);
-          setUserRole(parsed.email === 'luizcorrea.pt@gmail.com' ? 'admin' : (parsed.role || 'client'));
-        }, 0);
-      } catch (e) {}
+  const logout = async () => {
+    try {
+      await signOut(auth);
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('local_user');
+      }
+      setUser(null);
+      setUserRole(null);
+      setActiveView('agendar');
+    } catch (error) {
+      console.error('Erro ao sair:', error);
+      toast.error('Erro ao sair da conta');
     }
+  };
+
+  // Check for session automatically via Firebase Auth
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      setAuthLoading(true);
+      if (firebaseUser) {
+        // User is signed in
+        await fetchUserProfile(firebaseUser);
+      } else {
+        // User is signed out
+        setUser(null);
+        setUserRole(null);
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('local_user');
+        }
+      }
+      setAuthLoading(false);
+    });
+
+    return () => unsubscribe();
   }, []);
 
   // Fetch blocked periods
@@ -654,7 +712,6 @@ export default function BookingSPA({ onBackToHome, initialView }: BookingSPAProp
 
   // Fetch slots based on bookings
   const fetchSlots = useCallback(async () => {
-    if (!user) return;
     setIsLoadingSlots(true);
     try {
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
@@ -778,9 +835,8 @@ export default function BookingSPA({ onBackToHome, initialView }: BookingSPAProp
     if (!user || activeView !== 'perfil') return;
     setIsLoadingProfile(true);
     try {
-      const res = await fetch('/api/bookings');
+      const res = await fetch(`/api/bookings?userId=${user.uid || user.id}`);
       const data = await res.json();
-      // Em uma demo local, mostramos todos ou filtramos por nome/id simulado
       setUserBookings(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Erro ao buscar agendamentos do perfil:', error);
@@ -899,11 +955,18 @@ export default function BookingSPA({ onBackToHome, initialView }: BookingSPAProp
   };
 
   const handleConfirmBooking = async () => {
-    if (!selectedSlot || !user) return;
+    if (!selectedSlot) return;
+
+    if (!user) {
+       toast.warning('Você precisa fazer login para confirmar o agendamento.');
+       setActiveView('login');
+       return;
+    }
 
     setIsBooking(true);
     try {
       const bookingData = {
+        userId: user.uid || user.id,
         name: user.displayName || user.name || 'Cliente',
         phone: user.phone || '920087962',
         email: user.email || '',
@@ -956,7 +1019,7 @@ export default function BookingSPA({ onBackToHome, initialView }: BookingSPAProp
     );
   }
 
-  if (!user && activeView !== 'admin') {
+  if (activeView === 'login' || (!user && activeView === 'perfil')) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-[#131313] p-6 text-center space-y-8">
         <div className="space-y-4">
@@ -966,7 +1029,7 @@ export default function BookingSPA({ onBackToHome, initialView }: BookingSPAProp
           <p className="text-[#9a8f80] text-sm font-bold tracking-widest uppercase">Premium Grooming Experience</p>
         </div>
         
-        <div className="relative w-full max-w-sm aspect-square rounded-none overflow-hidden shadow-2xl border border-white/5">
+        <div className="relative w-full max-w-sm aspect-square rounded-none overflow-hidden shadow-2xl border border-white/5 hidden md:block">
           <Image 
             src="https://picsum.photos/seed/barber-shop/800/800" 
             alt="Barber Shop" 
@@ -977,19 +1040,65 @@ export default function BookingSPA({ onBackToHome, initialView }: BookingSPAProp
           <div className="absolute inset-0 bg-gradient-to-t from-[#131313] via-transparent to-transparent" />
         </div>
 
-        <button 
-          onClick={login}
-          className="w-full max-w-sm py-5 bg-[#e9c176] text-[#261900] text-sm font-bold tracking-[0.2em] uppercase rounded-none shadow-2xl shadow-[#e9c176]/20 active:scale-[0.98] transition-all flex items-center justify-center gap-3"
-        >
-          Entrar no Sistema
-        </button>
+        <form onSubmit={loginWithEmail} className="w-full max-w-sm space-y-4 bg-[#1c1b1b] p-6 border border-white/5">
+          <h2 className="text-[#e9c176] font-headline font-bold uppercase tracking-widest text-sm mb-4">
+            {isRegistering ? 'Criar Conta' : 'Acesse sua Conta'}
+          </h2>
+          <div className="space-y-3">
+            <Input 
+              type="email" 
+              placeholder="E-mail"
+              value={authEmail}
+              onChange={(e) => setAuthEmail(e.target.value)}
+              className="bg-[#2a2a2a] border-white/10 text-white rounded-none"
+              required
+            />
+            <Input 
+              type="password" 
+              placeholder="Senha"
+              value={authPassword}
+              onChange={(e) => setAuthPassword(e.target.value)}
+              className="bg-[#2a2a2a] border-white/10 text-white rounded-none"
+              required
+            />
+          </div>
+          <button 
+            type="submit"
+            className="w-full py-4 bg-[#e9c176] text-[#261900] text-sm font-bold tracking-[0.2em] uppercase rounded-none shadow-xl active:scale-[0.98] transition-all"
+          >
+            {isRegistering ? 'Cadastrar' : 'Entrar com Email'}
+          </button>
+          
+          <div className="flex items-center gap-4 my-4">
+            <div className="flex-1 h-px bg-white/10"></div>
+            <span className="text-[#9a8f80] text-[10px] uppercase tracking-widest">Ou</span>
+            <div className="flex-1 h-px bg-white/10"></div>
+          </div>
+
+          <button 
+            type="button"
+            onClick={loginWithGoogle}
+            className="w-full py-4 bg-white text-black text-sm font-bold tracking-[0.1em] uppercase rounded-none shadow-xl active:scale-[0.98] transition-all flex items-center justify-center gap-3"
+          >
+            <svg width="18" height="18" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24c0,11.045,8.955,20,20,20c11.045,0,20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"/><path fill="#FF3D00" d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z"/><path fill="#4CAF50" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.202,0-9.619-3.317-11.283-7.946l-6.522,5.025C9.505,39.556,16.227,44,24,44z"/><path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.571c0.001-0.001,0.002-0.001,0.003-0.002l6.19,5.238C36.971,39.205,44,34,44,24C44,22.659,43.862,21.35,43.611,20.083z"/></svg>
+            Entrar com Google
+          </button>
+
+          <button 
+            type="button"
+            onClick={() => setIsRegistering(!isRegistering)}
+            className="w-full mt-4 text-[#9a8f80] hover:text-[#e9c176] text-xs font-bold tracking-widest uppercase transition-colors"
+          >
+            {isRegistering ? 'Já tenho conta, fazer login' : 'Não tenho conta, cadastrar'}
+          </button>
+        </form>
 
         <button 
-          onClick={onBackToHome}
+          onClick={() => setActiveView('agendar')}
           className="text-[#9a8f80] hover:text-[#e9c176] text-xs font-bold uppercase tracking-widest transition-colors flex items-center gap-2"
         >
           <ChevronLeft size={16} />
-          Voltar à Home
+          Voltar para Agendamento
         </button>
       </div>
     );
