@@ -39,7 +39,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { auth, googleProvider } from '@/lib/firebase';
-import { signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, User as FirebaseUser } from 'firebase/auth';
+import { signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, onAuthStateChanged, signOut, User as FirebaseUser } from 'firebase/auth';
 import { Toaster } from "@/components/ui/sonner";
 
 type View = 'agendar' | 'perfil' | 'admin' | 'login';
@@ -119,6 +119,7 @@ export default function BookingSPA({ onBackToHome, initialView }: BookingSPAProp
   const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
   const [isRegistering, setIsRegistering] = useState(false);
+  const [isRecoveringPassword, setIsRecoveringPassword] = useState(false);
   
   const [activeView, setActiveView] = useState<View>(initialView || 'agendar');
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -604,7 +605,44 @@ export default function BookingSPA({ onBackToHome, initialView }: BookingSPAProp
       if (activeView === 'login') setActiveView('agendar');
     } catch (error: any) {
       console.error('Erro ao autenticar com email:', error);
-      toast.error(error.message || 'Erro ao acessar sua conta');
+      
+      let message = 'Erro ao acessar sua conta. Tente novamente.';
+      if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found') {
+        message = 'E-mail ou senha incorretos. Se você ainda não tem uma conta, mude para a opção de cadastro abaixo.';
+      } else if (error.code === 'auth/email-already-in-use') {
+        message = 'Este e-mail já está em uso. Se você já tem cadastro, tente fazer login ou use a recuperação de senha.';
+      } else if (error.code === 'auth/weak-password') {
+        message = 'Senha muito fraca. Escolha uma senha com no mínimo 6 caracteres.';
+      } else if (error.code === 'auth/invalid-email') {
+        message = 'Formato de e-mail inválido. Verifique o e-mail digitado.';
+      } else if (error.code === 'auth/operation-not-allowed') {
+        message = 'O login por E-mail/Senha não está ativo no painel do Firebase. Por favor, contate o administrador.';
+      }
+      
+      toast.error(message);
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!authEmail.trim()) {
+      toast.error('Por favor, insira o seu e-mail para recuperar a senha.');
+      return;
+    }
+    setAuthLoading(true);
+    try {
+      await sendPasswordResetEmail(auth, authEmail);
+      toast.success('E-mail de recuperação enviado com sucesso! Verifique sua caixa de entrada e pasta de spam.');
+      setIsRecoveringPassword(false);
+    } catch (error: any) {
+      console.error('Erro ao enviar e-mail de recuperação:', error);
+      let message = 'Erro ao enviar e-mail de recuperação. Tente novamente.';
+      if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-email') {
+        message = 'E-mail não cadastrado ou formato inválido. Por favor, verifique.';
+      }
+      toast.error(message);
     } finally {
       setAuthLoading(false);
     }
@@ -1040,58 +1078,104 @@ export default function BookingSPA({ onBackToHome, initialView }: BookingSPAProp
           <div className="absolute inset-0 bg-gradient-to-t from-[#131313] via-transparent to-transparent" />
         </div>
 
-        <form onSubmit={loginWithEmail} className="w-full max-w-sm space-y-4 bg-[#1c1b1b] p-6 border border-white/5">
-          <h2 className="text-[#e9c176] font-headline font-bold uppercase tracking-widest text-sm mb-4">
-            {isRegistering ? 'Criar Conta' : 'Acesse sua Conta'}
-          </h2>
-          <div className="space-y-3">
-            <Input 
-              type="email" 
-              placeholder="E-mail"
-              value={authEmail}
-              onChange={(e) => setAuthEmail(e.target.value)}
-              className="bg-[#2a2a2a] border-white/10 text-white rounded-none"
-              required
-            />
-            <Input 
-              type="password" 
-              placeholder="Senha"
-              value={authPassword}
-              onChange={(e) => setAuthPassword(e.target.value)}
-              className="bg-[#2a2a2a] border-white/10 text-white rounded-none"
-              required
-            />
-          </div>
-          <button 
-            type="submit"
-            className="w-full py-4 bg-[#e9c176] text-[#261900] text-sm font-bold tracking-[0.2em] uppercase rounded-none shadow-xl active:scale-[0.98] transition-all"
-          >
-            {isRegistering ? 'Cadastrar' : 'Entrar com Email'}
-          </button>
-          
-          <div className="flex items-center gap-4 my-4">
-            <div className="flex-1 h-px bg-white/10"></div>
-            <span className="text-[#9a8f80] text-[10px] uppercase tracking-widest">Ou</span>
-            <div className="flex-1 h-px bg-white/10"></div>
-          </div>
+        {isRecoveringPassword ? (
+          <form onSubmit={handleResetPassword} className="w-full max-w-sm space-y-4 bg-[#1c1b1b] p-6 border border-white/5">
+            <h2 className="text-[#e9c176] font-headline font-bold uppercase tracking-widest text-sm mb-4">
+              Recuperar Senha
+            </h2>
+            <p className="text-xs text-[#9a8f80] leading-relaxed text-left">
+              Insira o seu e-mail cadastrado abaixo. Enviaremos um link de recuperação para você redefinir sua senha no Firebase.
+            </p>
+            <div className="space-y-3">
+              <Input 
+                type="email" 
+                placeholder="Seu e-mail cadastrado"
+                value={authEmail}
+                onChange={(e) => setAuthEmail(e.target.value)}
+                className="bg-[#2a2a2a] border-white/10 text-white rounded-none"
+                required
+              />
+            </div>
+            <button 
+              type="submit"
+              className="w-full py-4 bg-[#e9c176] text-[#261900] text-sm font-bold tracking-[0.1em] uppercase rounded-none shadow-xl active:scale-[0.98] transition-all"
+            >
+              Enviar Link de Recuperação
+            </button>
+            
+            <button 
+              type="button"
+              onClick={() => setIsRecoveringPassword(false)}
+              className="w-full mt-4 text-[#9a8f80] hover:text-[#e9c176] text-xs font-bold tracking-widest uppercase transition-colors"
+            >
+              Voltar para o Login
+            </button>
+          </form>
+        ) : (
+          <form onSubmit={loginWithEmail} className="w-full max-w-sm space-y-4 bg-[#1c1b1b] p-6 border border-white/5">
+            <h2 className="text-[#e9c176] font-headline font-bold uppercase tracking-widest text-sm mb-4">
+              {isRegistering ? 'Criar Conta' : 'Acesse sua Conta'}
+            </h2>
+            <div className="space-y-3 text-left">
+              <Input 
+                type="email" 
+                placeholder="E-mail"
+                value={authEmail}
+                onChange={(e) => setAuthEmail(e.target.value)}
+                className="bg-[#2a2a2a] border-white/10 text-white rounded-none"
+                required
+              />
+              <Input 
+                type="password" 
+                placeholder="Senha"
+                value={authPassword}
+                onChange={(e) => setAuthPassword(e.target.value)}
+                className="bg-[#2a2a2a] border-white/10 text-white rounded-none"
+                required
+              />
+              {!isRegistering && (
+                <div className="text-right pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setIsRecoveringPassword(true)}
+                    className="text-xs text-[#9a8f80] hover:text-[#e9c176] transition-colors"
+                  >
+                    Esqueci minha senha?
+                  </button>
+                </div>
+              )}
+            </div>
+            <button 
+              type="submit"
+              className="w-full py-4 bg-[#e9c176] text-[#261900] text-sm font-bold tracking-[0.2em] uppercase rounded-none shadow-xl active:scale-[0.98] transition-all"
+            >
+              {isRegistering ? 'Cadastrar' : 'Entrar com Email'}
+            </button>
+            
+            <div className="flex items-center gap-4 my-4">
+              <div className="flex-1 h-px bg-white/10"></div>
+              <span className="text-[#9a8f80] text-[10px] uppercase tracking-widest">Ou</span>
+              <div className="flex-1 h-px bg-white/10"></div>
+            </div>
 
-          <button 
-            type="button"
-            onClick={loginWithGoogle}
-            className="w-full py-4 bg-white text-black text-sm font-bold tracking-[0.1em] uppercase rounded-none shadow-xl active:scale-[0.98] transition-all flex items-center justify-center gap-3"
-          >
-            <svg width="18" height="18" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24c0,11.045,8.955,20,20,20c11.045,0,20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"/><path fill="#FF3D00" d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z"/><path fill="#4CAF50" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.202,0-9.619-3.317-11.283-7.946l-6.522,5.025C9.505,39.556,16.227,44,24,44z"/><path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.571c0.001-0.001,0.002-0.001,0.003-0.002l6.19,5.238C36.971,39.205,44,34,44,24C44,22.659,43.862,21.35,43.611,20.083z"/></svg>
-            Entrar com Google
-          </button>
+            <button 
+              type="button"
+              onClick={loginWithGoogle}
+              className="w-full py-4 bg-white text-black text-sm font-bold tracking-[0.1em] uppercase rounded-none shadow-xl active:scale-[0.98] transition-all flex items-center justify-center gap-3"
+            >
+              <svg width="18" height="18" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24c0,11.045,8.955,20,20,20c11.045,0,20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"/><path fill="#FF3D00" d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z"/><path fill="#4CAF50" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.202,0-9.619-3.317-11.283-7.946l-6.522,5.025C9.505,39.556,16.227,44,24,44z"/><path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.571c0.001-0.001,0.002-0.001,0.003-0.002l6.19,5.238C36.971,39.205,44,34,44,24C44,22.659,43.862,21.35,43.611,20.083z"/></svg>
+              Entrar com Google
+            </button>
 
-          <button 
-            type="button"
-            onClick={() => setIsRegistering(!isRegistering)}
-            className="w-full mt-4 text-[#9a8f80] hover:text-[#e9c176] text-xs font-bold tracking-widest uppercase transition-colors"
-          >
-            {isRegistering ? 'Já tenho conta, fazer login' : 'Não tenho conta, cadastrar'}
-          </button>
-        </form>
+            <button 
+              type="button"
+              onClick={() => setIsRegistering(!isRegistering)}
+              className="w-full mt-4 text-[#9a8f80] hover:text-[#e9c176] text-xs font-bold tracking-widest uppercase transition-colors"
+            >
+              {isRegistering ? 'Já tenho conta, fazer login' : 'Não tenho conta, cadastrar'}
+            </button>
+          </form>
+        )}
 
         <button 
           onClick={() => setActiveView('agendar')}
