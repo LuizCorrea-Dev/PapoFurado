@@ -831,14 +831,14 @@ export default function LandingPage({ onStartBooking, onOpenProfile, onOpenAdmin
                 rel="noopener noreferrer"
                 className="block w-full h-40 bg-[#2a2a2a] rounded-none overflow-hidden border border-white/5 relative group grayscale hover:grayscale-0 transition-all duration-500"
               >
-                <img 
-                  src={`https://static-maps.yandex.ru/1.x/?lang=pt_PT&ll=${mapCoords?.ll || '-8.5292,41.1685'}&z=16&l=map&size=600,400&pt=${mapCoords?.ll || '-8.5292,41.1685'},pm2rdm`} 
-                  alt="Mapa Localização" 
-                  className="object-cover opacity-50 group-hover:opacity-100 transition-opacity"
-                  referrerPolicy="no-referrer"
-                  style={{ width: '100%', height: '100%', objectFit: 'cover', backgroundColor: '#2a2a2a' }}
+                <iframe 
+                  src={`https://maps.google.com/maps?q=${encodeURIComponent(config.footer.address)}&t=&z=15&ie=UTF8&iwloc=&output=embed`}
+                  title="Mapa Localização" 
+                  className="w-full h-full object-cover opacity-50 group-hover:opacity-100 transition-opacity pointer-events-none"
+                  style={{ border: 0 }}
+                  loading="lazy"
                 />
-                <div className="absolute inset-0 flex items-center justify-center bg-black/40 group-hover:bg-transparent transition-colors">
+                <div className="absolute inset-0 flex items-center justify-center bg-black/40 group-hover:bg-transparent transition-colors pointer-events-none">
                   <div className="bg-[#e9c176] text-[#261900] p-2 rounded-none shadow-lg">
                     <MapPin size={20} />
                   </div>
