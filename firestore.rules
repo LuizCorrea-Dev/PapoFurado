@@ -1,0 +1,27 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Configurações da Landing Page
+    match /landing_page_config/{docId} {
+      allow read: if true;
+      allow write: if true; 
+    }
+
+    // Agendamentos
+    match /agendamentos/{bookingId} {
+      allow read, write: if true;
+    }
+
+    // Bloqueios de agenda
+    match /bloqueios/{blockId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // Regra padrão: bloquear tudo que não foi explicitamente permitido
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,0 +1,175 @@
+{
+  "entities": {
+    "Booking": {
+      "title": "Booking",
+      "description": "A barbershop appointment",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Client name" },
+        "email": { "type": "string", "format": "email", "description": "Client email" },
+        "phone": { "type": "string", "description": "Client phone number" },
+        "serviceId": { "type": "string", "description": "ID of the service" },
+        "barberId": { "type": "string", "description": "ID of the barber" },
+        "date": { "type": "string", "format": "date", "description": "Date of the appointment (YYYY-MM-DD)" },
+        "startTime": { "type": "string", "description": "Start time (HH:mm)" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp" },
+        "uid": { "type": "string", "description": "User ID of the client" }
+      },
+      "required": ["name", "email", "serviceId", "barberId", "date", "startTime", "uid"]
+    },
+    "User": {
+      "title": "User",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "role": { "type": "string", "enum": ["admin", "client"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "email", "role"]
+    },
+    "LandingPageConfig": {
+      "title": "LandingPageConfig",
+      "description": "Configuration for the landing page content",
+      "type": "object",
+      "properties": {
+        "hero": {
+          "type": "object",
+          "properties": {
+            "badge": { "type": "string" },
+            "title": { "type": "string" },
+            "subtitle": { "type": "string" },
+            "bgImage": { "type": "string" }
+          }
+        },
+        "history": {
+          "type": "object",
+          "properties": {
+            "title": { "type": "string" },
+            "text1": { "type": "string" },
+            "text2": { "type": "string" },
+            "stat1Value": { "type": "string" },
+            "stat1Label": { "type": "string" },
+            "stat2Value": { "type": "string" },
+            "stat2Label": { "type": "string" },
+            "image": { "type": "string" },
+            "year": { "type": "string" },
+            "yearLabel": { "type": "string" }
+          }
+        },
+        "services": {
+          "type": "object",
+          "properties": {
+            "title": { "type": "string" },
+            "subtitle": { "type": "string" },
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": { "type": "string" },
+                  "icon": { "type": "string" },
+                  "title": { "type": "string" },
+                  "description": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "gallery": {
+          "type": "object",
+          "properties": {
+            "title": { "type": "string" },
+            "subtitle": { "type": "string" },
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": { "type": "string" },
+                  "image": { "type": "string" },
+                  "title": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "testimonials": {
+          "type": "object",
+          "properties": {
+            "title": { "type": "string" },
+            "subtitle": { "type": "string" },
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": { "type": "string" },
+                  "name": { "type": "string" },
+                  "role": { "type": "string" },
+                  "text": { "type": "string" },
+                  "stars": { "type": "number" },
+                  "image": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "cta": {
+          "type": "object",
+          "properties": {
+            "title": { "type": "string" },
+            "subtitle": { "type": "string" },
+            "image": { "type": "string" }
+          }
+        },
+        "footer": {
+          "type": "object",
+          "properties": {
+            "description": { "type": "string" },
+            "address": { "type": "string" },
+            "phone": { "type": "string" },
+            "email": { "type": "string" },
+            "openingHours": { "type": "string" },
+            "instagram": { "type": "string" },
+            "facebook": { "type": "string" }
+          }
+        }
+      }
+    },
+    "BlockedPeriod": {
+      "title": "BlockedPeriod",
+      "description": "A period when a barber or the whole shop is unavailable",
+      "type": "object",
+      "properties": {
+        "barberId": { "type": "string", "description": "ID of the barber (or 'all' for shop-wide)" },
+        "date": { "type": "string", "format": "date", "description": "Date of the block (YYYY-MM-DD)" },
+        "startTime": { "type": "string", "description": "Start time (HH:mm). If null/empty, whole day is blocked." },
+        "endTime": { "type": "string", "description": "End time (HH:mm). If null/empty, whole day is blocked." },
+        "reason": { "type": "string", "description": "Reason for the block" },
+        "type": { "type": "string", "enum": ["feriado", "indisponivel", "horario_especial"], "description": "Type of block" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["barberId", "date", "type", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/bookings/{bookingId}": {
+      "schema": "Booking",
+      "description": "Collection of all appointments"
+    },
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles and roles"
+    },
+    "/config/landingPage": {
+      "schema": "LandingPageConfig",
+      "description": "Singleton configuration for the landing page"
+    },
+    "/blocked_periods/{blockId}": {
+      "schema": "BlockedPeriod",
+      "description": "Periods of unavailability for barbers or the shop"
+    }
+  }
+}
