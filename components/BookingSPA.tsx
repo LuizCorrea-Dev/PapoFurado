@@ -2015,14 +2015,13 @@ export default function BookingSPA({ onBackToHome, initialView }: BookingSPAProp
               <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <button className="flex items-center gap-4 p-5 bg-[#1c1b1b] rounded-none hover:bg-[#2a2a2a] transition-all group active:scale-[0.98] border border-white/5">
                   <div className="w-10 h-10 rounded-none bg-[#353534] flex items-center justify-center text-[#e9c176]">
-                    <CreditCard size={20} />
+                    <Star size={20} />
                   </div>
                   <div className="text-left">
-                    <h4 className="text-[#e5e2e1] font-bold text-sm">Meus Cartões</h4>
-                    <p className="text-[#d1c5b4] text-xs">Gerencie suas formas de pagamento</p>
+                    <h4 className="text-[#e5e2e1] font-bold text-sm">Pontos de Fidelidade</h4>
+                    <p className="text-[#d1c5b4] text-xs">Total adquirido: {userBookings.filter(b => b.status === 'concluido').length * 10} pontos</p>
                   </div>
                   <div className="flex-grow"></div>
-                  <ChevronRight className="text-[#9a8f80] group-hover:text-[#e9c176] transition-colors" size={20} />
                 </button>
                 <button 
                   onClick={logout}
