@@ -894,12 +894,11 @@ export default function LandingPage({ onStartBooking, onOpenProfile, onOpenAdmin
               onSubmit={(e) => {
                 e.preventDefault();
                 // Simulação de login admin para demonstração
-                // Em um cenário real, isso usaria Firebase Auth Email/Password
-                if (adminEmail === 'admin@papofurado.com' && adminPassword === 'admin123') {
+                if (adminEmail === 'barbeariapapofurado@gmail.com' && adminPassword === 'admin123') {
                   onOpenAdmin();
                   setIsAdminModalOpen(false);
                 } else {
-                  setError('Credenciais inválidas. Tente admin@papofurado.com / admin123');
+                  setError('Credenciais inválidas. Por favor, tente novamente.');
                 }
               }}
               className="space-y-4"

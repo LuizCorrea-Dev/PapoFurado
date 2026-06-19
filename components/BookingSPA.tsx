@@ -558,7 +558,7 @@ export default function BookingSPA({ onBackToHome, initialView }: BookingSPAProp
         isVIP: !!userData.isVIP,
         isPremium: !!userData.isPremium,
         isFavorite: !!userData.isFavorite,
-        role: (firebaseUser.email === 'luizcorrea.pt@gmail.com' || userData.role === 'admin') ? 'admin' : 'client'
+        role: (firebaseUser.email === 'barbeariapapofurado@gmail.com' || userData.role === 'admin') ? 'admin' : 'client'
       };
       
       setUser(finalUser);

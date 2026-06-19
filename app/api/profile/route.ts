@@ -21,6 +21,7 @@ export async function GET(req: Request) {
         name: email.split('@')[0],
         phone: '',
         photoUrl: '',
+        role: email === 'barbeariapapofurado@gmail.com' ? 'admin' : 'client',
         createdAt: new Date().toISOString()
       };
       await db.collection('usuarios').doc(id).set(newUser);
